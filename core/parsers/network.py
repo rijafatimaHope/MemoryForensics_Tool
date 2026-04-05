@@ -3,6 +3,8 @@
 # ==========================================
 import struct
 import socket
+
+# 1. Import everything you need from config (Requires Aden to update config.py first!)
 from config.config import (
     POINTER_SIZE, OFFSET_FILES, OFFSET_FDT, OFFSET_FD_ARRAY,
     OFFSET_FILE_PRIVATE, OFFSET_SOCK_SK, OFFSET_INET_SPORT,
@@ -16,36 +18,36 @@ def extract_network_connections(mapped_memory, struct_addr):
     """
     connections = []
     try:
-        # 1. task_struct -> files_struct
+        # 1. task_struct -> files_struct (Notice the is back!)
         mapped_memory.seek(struct_addr + OFFSET_FILES)
-        files_struct_ptr = struct.unpack("<Q", mapped_memory.read(POINTER_SIZE))[0]
+        files_struct_ptr = struct.unpack("<Q", mapped_memory.read(POINTER_SIZE))
         if files_struct_ptr == 0:
             return connections
 
         # 2. files_struct -> fdtable
         mapped_memory.seek(files_struct_ptr + OFFSET_FDT)
-        fdt_ptr = struct.unpack("<Q", mapped_memory.read(POINTER_SIZE))[0]
+        fdt_ptr = struct.unpack("<Q", mapped_memory.read(POINTER_SIZE))
 
         # 3. fdtable -> fd_array
         mapped_memory.seek(fdt_ptr + OFFSET_FD_ARRAY)
-        fd_array_ptr = struct.unpack("<Q", mapped_memory.read(POINTER_SIZE))[0]
+        fd_array_ptr = struct.unpack("<Q", mapped_memory.read(POINTER_SIZE))
 
         # 4. Check first 256 file descriptors (sockets usually here)
         for i in range(256):
             mapped_memory.seek(fd_array_ptr + (i * POINTER_SIZE))
-            file_ptr = struct.unpack("<Q", mapped_memory.read(POINTER_SIZE))[0]
+            file_ptr = struct.unpack("<Q", mapped_memory.read(POINTER_SIZE))
             if file_ptr == 0:
                 continue
 
             # 5. file -> private_data (socket)
             mapped_memory.seek(file_ptr + OFFSET_FILE_PRIVATE)
-            socket_ptr = struct.unpack("<Q", mapped_memory.read(POINTER_SIZE))[0]
+            socket_ptr = struct.unpack("<Q", mapped_memory.read(POINTER_SIZE))
             if socket_ptr == 0:
                 continue
 
             # 6. socket -> sock
             mapped_memory.seek(socket_ptr + OFFSET_SOCK_SK)
-            sock_ptr = struct.unpack("<Q", mapped_memory.read(POINTER_SIZE))[0]
+            sock_ptr = struct.unpack("<Q", mapped_memory.read(POINTER_SIZE))
             if sock_ptr == 0:
                 continue
 
@@ -62,10 +64,10 @@ def extract_network_connections(mapped_memory, struct_addr):
 
             # Ports (network byte order → big-endian)
             mapped_memory.seek(sock_ptr + OFFSET_INET_SPORT)
-            local_port = struct.unpack(">H", mapped_memory.read(2))[0]
+            local_port = struct.unpack(">H", mapped_memory.read(2))
 
             mapped_memory.seek(sock_ptr + OFFSET_INET_DPORT)
-            remote_port = struct.unpack(">H", mapped_memory.read(2))[0]
+            remote_port = struct.unpack(">H", mapped_memory.read(2))
 
             # Simple protocol guess (can be improved later)
             protocol = "TCP" if local_port < 65536 else "UDP"  # placeholder

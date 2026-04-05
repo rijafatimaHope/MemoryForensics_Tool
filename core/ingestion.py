@@ -12,7 +12,14 @@ class MemoryIngestor:
     avoiding out-of-memory errors. Implements context manager for safe cleanup.
     """
     def __init__(self, file_path):
-        self.file_path = file_path
+        # SECURITY FIX: Resolve absolute path to thwart Relative Directory Traversal (e.g. ../../etc/shadow)
+        self.file_path = os.path.abspath(file_path)
+        
+        # SECURITY FIX: Enforce whitelisted extensions to prevent arbitrary binary loading
+        allowed_exts = ('.raw', '.dd', '.vmem', '.img')
+        if not self.file_path.endswith(allowed_exts):
+            raise ValueError(f"Invalid memory dump extension. Must be one of: {allowed_exts}")
+
         self.file_obj = None
         self.mapped_memory = None
 

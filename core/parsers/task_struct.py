@@ -8,7 +8,6 @@ class TaskStructIterator:
     """
     Role 1 Core Engine Component.
     Iterates through the doubly linked list of tasks in the Linux memory mapping.
-    Yields the physical/virtual layout boundary addresses for Role 2 to parse text definitions from.
     """
     def __init__(self, mapped_memory, init_task_offset):
         self.mapped_memory = mapped_memory
@@ -16,10 +15,6 @@ class TaskStructIterator:
         self.visited = set()
 
     def walk_tasks(self):
-        """
-        Generator that traverses the tasks.next linked list.
-        Yields the absolute address of each discovered task_struct.
-        """
         current_task_addr = self.init_task_offset
         
         while True:
@@ -30,7 +25,7 @@ class TaskStructIterator:
                 
             self.visited.add(current_task_addr)
             
-            # Yield the current task_struct address for Role 2
+            # Yield the current physical address to Role 2!
             yield current_task_addr
             
             # Find the pointer to the next task's list_head
@@ -44,18 +39,22 @@ class TaskStructIterator:
             # Read 8 bytes
             self.mapped_memory.seek(next_ptr_addr)
             pointer_bytes = self.mapped_memory.read(POINTER_SIZE)
-            
-            # Unpack the 64-bit unsigned long long (little-endian)
             next_list_head = struct.unpack("<Q", pointer_bytes)[0]
             
-            # If the literal pointer is 0 or invalid, break
             if next_list_head == 0:
                 break
                 
-            # next_list_head points to the OFFSET_TASKS field of the next task_struct.
-            # To get the actual next task_struct base address, we subtract the offset.
-            current_task_addr = next_list_head - OFFSET_TASKS
+            # ==========================================
+            # THE KASLR HACK: Virtual to Physical Translation
+            # ==========================================
+            # next_list_head is a Virtual Address like 0xffff88af40921b00
+            # By masking with 0xFFFFFFFF, we chop off the top 32 bits 
+            # and get the raw Physical offset (e.g., 0x40921b00)
+            physical_list_head = next_list_head & 0xFFFFFFFF
             
-            # If we looped back to init_task smoothly, we are done
+            # Now we subtract the offset just like normal
+            current_task_addr = physical_list_head - OFFSET_TASKS
+            
+            # If we looped back to where we started, we are done
             if current_task_addr == self.init_task_offset:
                 break

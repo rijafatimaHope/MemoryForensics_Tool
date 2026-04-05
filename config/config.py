@@ -14,10 +14,14 @@ DEFAULT_CHUNK_SIZE = 10 * 1024 * 1024  # 10 MB chunks
 LINUX_BANNER_MAGIC = b"Linux version "
 MAX_BANNER_LENGTH = 128
 
-# Task Struct Engine Offsets (Linux 64-bit generic placeholder profile)
-INIT_TASK_OFFSET = 0xffffffff82600000
-OFFSET_TASKS = 0x398
-OFFSET_PID = 0x4d8
-OFFSET_COMM = 0x6e8
+
+# Task Struct Engine Offsets 
+INIT_TASK_OFFSET = 0x14c130c0
+OFFSET_TASKS = 0x9c0
+OFFSET_PID = 0xa90
+OFFSET_COMM = 0xcb0
 POINTER_SIZE = 8
+
+OFFSET_REAL_PARENT = 0xaa0
+OFFSET_START_TIME = 0xbe8
 

@@ -1,51 +1,61 @@
 import os
+import struct
 from core.ingestion import MemoryIngestor
-from core.parsers.task_struct import TaskStructIterator
-from config.config import INIT_TASK_OFFSET
-
-# Hey Role 5 (Integration Lead)! 
-# Make sure you import the process and network extractors from Role 2 and 3 here.
-# Also, import your clean 'prepare_data_for_gui' function from integration.py!
+from core.parsers.processes import extract_process_info
+from config.config import OFFSET_COMM, OFFSET_PID
 
 def main():
     print("Starting Memory Forensics Engine...")
-    
-    # We pretend this is our generic raw memory image
-    # Note: Make sure a real memory dump is placed in this folder before running!
     memory_dump_file = "sample_memory.raw"
     
     if not os.path.exists(memory_dump_file):
         print(f"Waiting for {memory_dump_file} to be added...")
         return
 
-    # Role 1's job is complete: Safely opening the file.
     with MemoryIngestor(memory_dump_file) as mapped:
-        print("Memory successfully inside the engine without crashing!")
+        print("Memory successfully inside the engine!")
+        print("Role 1 Page Tables missing. Initiating Signature-Based Memory Scanner (psscan)...")
         
-        # We start looking through memory blocks
-        iterator = TaskStructIterator(mapped, INIT_TASK_OFFSET)
+        # Common Linux processes to search for directly in physical memory
+        target_processes = [
+            b"systemd\x00", b"kthreadd\x00", b"kworker", 
+            b"rcu_gp\x00", b"bash\x00", b"sshd\x00", b"cron\x00"
+        ]
         
-        raw_processes_for_gui = []
-        raw_connections_for_gui = []
-
-        # Role 1 gives us the physical locations of everything:
-        for struct_address in iterator.walk_tasks():
-            
-            # ==========================================
-            # Hey Integration Lead (Role 5)!
-            # ==========================================
-            # This is where you tie everything together.
-            # 
-            # 1. Call Role 2's process extractor using this `struct_address`.
-            # 2. Add that process dictionary to `raw_processes_for_gui`.
-            #
-            # 3. Call Role 3's network extractor using this `struct_address`.
-            # 4. Add those connection dictionaries to `raw_connections_for_gui`.
-            #
-            # Finally, outside this loop, pass both lists into your GUI 
-            # converter: prepare_data_for_gui()
-            
-            pass
+        print("\n=== EXTRACTED PROCESSES ===") #ROLE 2 PARSER OUTPUT
+        valid_processes = []
+        
+        for target in target_processes:
+            search_offset = 0
+            while len(valid_processes) < 10:
+                comm_offset = mapped.find(target, search_offset)
+                if comm_offset == -1:
+                    break
+                    
+                potential_base = comm_offset - OFFSET_COMM
+                
+                # If we found a string, let's mathematically verify it is a real task_struct
+                if potential_base > 0:
+                    try:
+                        mapped.seek(potential_base + OFFSET_PID)
+                        pid = struct.unpack("<i", mapped.read(4))[0]
+                        
+                        # Valid Linux PIDs are between 1 and 32768
+                        if 0 < pid < 32768:
+                            # CALLING ROLE 2 PARSER!
+                            process_data = extract_process_info(mapped, potential_base)
+                            
+                            # Print it if it is valid and not a duplicate
+                            if process_data and process_data['pid'] == pid:
+                                if not any(p['pid'] == pid for p in valid_processes):
+                                    print(process_data)
+                                    valid_processes.append(process_data)
+                    except Exception:
+                        pass
+                        
+                search_offset = comm_offset + 1
+                
+        print(f"\n[+] Successfully carved {len(valid_processes)} processes directly from physical RAM!")
 
 if __name__ == "__main__":
     main()

@@ -2,11 +2,13 @@ import os
 import struct
 from core.ingestion import MemoryIngestor
 from core.parsers.processes import extract_process_info
+from core.parsers.network import extract_network_connections
 from config.config import OFFSET_COMM, OFFSET_PID
 
 def main():
     print("Starting Memory Forensics Engine...")
-    memory_dump_file = "sample_memory.raw"
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    memory_dump_file = os.path.join(script_dir, "sample_memory.raw")
     
     if not os.path.exists(memory_dump_file):
         print(f"Waiting for {memory_dump_file} to be added...")
@@ -24,6 +26,7 @@ def main():
         
         print("\n=== EXTRACTED PROCESSES ===") #ROLE 2 PARSER OUTPUT
         valid_processes = []
+        valid_connections = []
         
         for target in target_processes:
             search_offset = 0
@@ -50,12 +53,28 @@ def main():
                                 if not any(p['pid'] == pid for p in valid_processes):
                                     print(process_data)
                                     valid_processes.append(process_data)
+
+                                    # CALL ROLE 3 NETWORK PARSER
+                                    network_connections = extract_network_connections(
+                                        mapped,
+                                        potential_base,
+                                        pid=pid,
+                                        process_name=process_data['name']
+                                    )
+                                    if network_connections:
+                                        print("  Network connections:")
+                                        for conn in network_connections:
+                                            valid_connections.append(conn)
+                                            print(f"    {conn['local_ip']}:{conn['local_port']} -> {conn['remote_ip']}:{conn['remote_port']} ({conn['protocol']})")
+                                    else:
+                                        print("  No network connections found for this process.")
                     except Exception:
                         pass
                         
                 search_offset = comm_offset + 1
                 
         print(f"\n[+] Successfully carved {len(valid_processes)} processes directly from physical RAM!")
+        print(f"[+] Successfully extracted {len(valid_connections)} network connections from the carved processes.")
 
 if __name__ == "__main__":
     main()

@@ -20,7 +20,7 @@ MemoryForensics_Tool/
 ├── core/parsers/
 │   ├── task_struct.py       -> (Role 1: Done) C-Struct iterator built with `struct` module. Safely loops physical boundaries.
 │   ├── processes.py         -> (Role 2: Done) Extracts PID, Process Name, PPID, and Boot Time directly from raw physical memory using a custom psscan signature bypass.
-│   └── network.py           -> (Role 3) Empty stub file! You need to unpack IPs and network topologies here.
+│   └── network.py           -> (Role 3: Done) Extracts network sockets and port topologies by calculating fd tables from physical memory structs.
 │
 ■ INTEGRATION & GUI (Role 4 & 5)
 ├── run_bridge.py            -> (Role 5) The root script! You must plug Role 2 & 3's dictionary outputs into this file.

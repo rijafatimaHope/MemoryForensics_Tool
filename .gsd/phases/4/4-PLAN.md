@@ -4,45 +4,55 @@ plan: 1
 wave: 1
 ---
 
-# Plan 4.1: Role 2 Extraction & GUI Pipeline Hook
+# Plan 4.1: Role Teammate Stub Handover
 
 ## Objective
-Finalize the Core Engine backend logic by mapping the discovered `task_struct` physical addresses to string-castable variables. Provide a top-level runner that ties the engine to the existing GUI data sanitizer (`integration.py`).
+Establish perfectly documented architecture stubs indicating exactly where Roles 2, 3, and 5 should hook into Role 1's `TaskStructIterator`. Prevent any unauthorized implementation of Process or Network extraction logic by Role 1.
 
 ## Context
-- .gsd/ROADMAP.md
 - TEAM_ROLES.md
 
 ## Tasks
 
 <task type="auto">
-  <name>Build Process Structural Mapper (Role 2 Bridge)</name>
+  <name>Generate Role 2 Process Stub</name>
   <files>core/parsers/processes.py</files>
   <action>
-    - Write a module parsing integers and strings from the physical buffer endpoints.
-    - Implement `extract_process_info(mapped_memory, struct_addr)`.
-    - Apply constraints: Bound `mapped_memory.seek(struct_addr + OFFSET_PID)` using `config.OFFSET_PID`.
-    - Extract PID with `struct.unpack("<i", bytes)[0]`.
-    - Bound `mapped_memory.seek(struct_addr + OFFSET_COMM)` using `config.OFFSET_COMM`.
-    - Extract COMM exactly 16 bytes: `struct.unpack("16s", bytes)[0]`. Split it by `b'\x00'` to cull junk, and `.decode('utf-8')`.
-    - Build exact python dictionary requested by GUI: `{'pid': pid, 'name': comm_str, 'ppid': 'N/A', 'time': 'N/A'}`.
+    - Create the file `core/parsers/processes.py`.
+    - Write a massive top-level docstring explicitly addressing the "Process & Library Analyst (Role 2)".
+    - Provide a purely empty stub `def extract_process_info(mapped_memory, struct_addr):` yielding `pass`.
+    - Inject comments inside the block outlining exactly how Role 2 can use `struct.unpack("<I")` combining `struct_addr + config.OFFSET_PID` to satisfy their role. Do NOT write the unpack logic.
   </action>
-  <verify>python -c "from core.parsers.processes import extract_process_info"</verify>
-  <done>Strings cleanly convert and map to standard dictionary payloads.</done>
+  <verify>python -c "import core.parsers.processes"</verify>
+  <done>File exists and imports cleanly with instructional comments only.</done>
 </task>
 
 <task type="auto">
-  <name>Construct Root Level GUI Pipeline runner</name>
+  <name>Generate Role 3 Network Stub</name>
+  <files>core/parsers/network.py</files>
+  <action>
+    - Create the file `core/parsers/network.py`.
+    - Write a top-level docstring addressing the "Network Forensics Analyst (Role 3)".
+    - Provide an empty stub `def extract_network_connections(mapped_memory, struct_addr):`.
+    - Add `# TODO` comments explaining how socket arrays extend from `task_struct` pointers. Do NOT write extraction logic.
+  </action>
+  <verify>python -c "import core.parsers.network"</verify>
+  <done>File exists and imports cleanly.</done>
+</task>
+
+<task type="auto">
+  <name>Generate Role 5 Bridge Stub</name>
   <files>run_bridge.py</files>
   <action>
-    - Establish `main()` block combining `MemoryIngestor` + `TaskStructIterator` + `extract_process_info`.
-    - Push the array of processed struct dictionaries directly into `prepare_data_for_gui(raw_processes=[], raw_connections=[])` imported from `integration.py`.
-    - Output `json.dumps()` or clean `print` structures to the console proving the GUI received cleanly filtered strings and bounds rather than core panics.
+    - Create the root level `run_bridge.py`.
+    - Write the `main()` python loop that instantiates `MemoryIngestor` and calls `TaskStructIterator.walk_tasks()`.
+    - Within the loop, write `# TODO: ROLE 5` indicating where they should call Process/Network parsers and append the resulting dictionaries to the `raw_processes` list.
+    - Write a `# TODO: GUI HANDOFF` explicitly showing an import to `integration.prepare_data_for_gui`. Do NOT write the full data passing arrays.
   </action>
   <verify>python -c "import run_bridge"</verify>
-  <done>Whole-program flow securely integrates memory IO, struct decoding, and schema bounding simultaneously.</done>
+  <done>Runner loop is stubbed and guides downstream roles.</done>
 </task>
 
 ## Success Criteria
-- [ ] End-to-end extraction from a chunked `.raw` buffer yields human-readable text structs into `integration.py`.
-- [ ] Core pipeline does not crash on malformed memory.
+- [ ] No Role 2 or Role 3 structural mapping logic is authored by Role 1.
+- [ ] Stubs perfectly establish the layout required by downstream dependencies.

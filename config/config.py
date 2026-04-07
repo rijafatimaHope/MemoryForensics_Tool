@@ -25,12 +25,15 @@ POINTER_SIZE = 8
 OFFSET_REAL_PARENT = 0xaa0
 OFFSET_START_TIME = 0xbe8
 
-OFFSET_FILES = 0xcf8
-OFFSET_FDT = 0x20
-OFFSET_FD_ARRAY = 0x8
-OFFSET_FILE_PRIVATE = 0x18
-OFFSET_SOCK_SK = 0x18
-OFFSET_INET_SPORT = 0x32e
-OFFSET_INET_DPORT = 0xc
-OFFSET_INET_SADDR = 0x328
-OFFSET_INET_DADDR = 0x0
+# --- NEW: Network Analyst Offsets (Role 3) ---
+# These are required by core/parsers/network.py
+OFFSET_FILES = 0xaf0          # task_struct -> files_struct
+OFFSET_FDT = 0x8              # files_struct -> fdtable
+OFFSET_FD_ARRAY = 0x10        # fdtable -> fd_array
+OFFSET_FILE_PRIVATE = 0xc8    # file -> private_data (socket)
+OFFSET_SOCK_SK = 0x30         # socket -> sock
+OFFSET_INET_SPORT = 0x16      # sock -> source port
+OFFSET_INET_DPORT = 0x18      # sock -> destination port
+OFFSET_INET_SADDR = 0x4       # sock -> source address
+OFFSET_INET_DADDR = 0x0       # sock -> destination address
+

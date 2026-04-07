@@ -13,6 +13,8 @@ from tkinter import ttk
 import sys
 import os
 
+from integration import get_live_backend_data
+
 try:
     from integration import prepare_data_for_gui, search_in_prepared_data
     from dummy_data import sample_processes, sample_connections
@@ -75,7 +77,7 @@ FG_ACCENT = "#c8c8c8"
 ALERT_RED = "#c0392b"
 BORDER    = "#2a2a2a"
 
-PROC_COLS  = ("PID", "Name", "PPID", "Time")
+PROC_COLS  = ("PID", "Name", "Time")
 CONN_COLS  = ("PID", "Local IP", "Local Port", "Remote IP", "Remote Port", "Protocol")
 
 
@@ -198,7 +200,7 @@ class ForensicsApp(ctk.CTk):
         tab_conn = tab_view.add("Connections")
 
         self._proc_tree  = self._build_table(tab_proc,  PROC_COLS,
-                                              {c: w for c, w in zip(PROC_COLS, [80,200,80,120])})
+                                              {c: w for c, w in zip(PROC_COLS, [100, 250, 150])})
         self._conn_tree  = self._build_table(tab_conn,  CONN_COLS,
                                               {c: w for c, w in zip(CONN_COLS, [80,140,100,140,100,90])})
 
@@ -239,13 +241,24 @@ class ForensicsApp(ctk.CTk):
     # Data Loading & Rendering
 
     def _load_data(self):
-        self._set_status("loading...")
+        self._set_status("Scanning sample_memory.raw...")
         try:
-            self._prepared_data = prepare_data_for_gui(sample_processes, sample_connections)
-            self._render(self._prepared_data)
-            self._set_status("ready")
+            # FIX: Attempt to load real data from the backend engine
+            live_data = get_live_backend_data("sample_memory.raw")
+            
+            if live_data:
+                self._prepared_data = live_data
+                self._render(self._prepared_data)
+                self._set_status("Ready (Live Data)")
+            else:
+                # Fallback if the file is missing
+                self._set_status("File not found. Please add 'sample_memory.raw'.")
+                from dummy_data import sample_processes, sample_connections
+                self._prepared_data = prepare_data_for_gui(sample_processes, sample_connections)
+                self._render(self._prepared_data)
+                
         except Exception as exc:
-            self._set_status(f"error: {exc}")
+            self._set_status(f"Error: {exc}")
 
     def _render(self, data):
         stats = data["stats"]

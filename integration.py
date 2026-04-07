@@ -1,53 +1,90 @@
-
-# Bridge between backend and GUI 
-
-from dummy_data import sample_processes, sample_connections
+# integration.py
+import os
+import struct
+from core.ingestion import MemoryIngestor
+from core.parsers.processes import extract_process_info
+from core.parsers.network import extract_network_connections
 from search_filter import filter_processes, filter_connections
+from config.config import OFFSET_COMM, OFFSET_PID
+
+def get_live_backend_data(memory_dump_path="sample_memory.raw"):
+    """
+    Triggers the Core Engine to parse the actual .raw dump instead of dummy data.
+    """
+    if not os.path.exists(memory_dump_path):
+        return None
+
+    all_procs = []
+    all_conns = []
+
+    # Use Role 1 Ingestor to map the real file
+    with MemoryIngestor(memory_dump_path) as mapped:
+        # Common Linux processes to search for directly in physical memory
+        target_processes = [
+            b"systemd\x00", b"kthreadd\x00", b"bash\x00", 
+            b"sshd\x00", b"cron\x00"
+        ]
+        
+        for target in target_processes:
+            search_offset = 0
+            while True:
+                comm_offset = mapped.find(target, search_offset)
+                if comm_offset == -1:
+                    break
+                    
+                potential_base = comm_offset - OFFSET_COMM
+                
+                if potential_base > 0:
+                    try:
+                        # Verify PID to ensure it's a valid task_struct
+                        mapped.seek(potential_base + OFFSET_PID)
+                        pid = struct.unpack("<i", mapped.read(4))[0]
+                        
+                        if 0 < pid < 32768:
+                            # Role 2: Extract process details
+                            proc_data = extract_process_info(mapped, potential_base)
+                            
+                            if proc_data and not any(p['pid'] == pid for p in all_procs):
+                                all_procs.append(proc_data)
+                                
+                                # Role 3: Extract network connections for this process
+                                net_data = extract_network_connections(mapped, potential_base)
+                                for conn in net_data:
+                                    conn['pid'] = pid  # Assign real PID to the connection
+                                all_conns.extend(net_data)
+                    except Exception:
+                        pass
+                        
+                search_offset = comm_offset + 1
+
+    return prepare_data_for_gui(all_procs, all_conns)
 
 def prepare_data_for_gui(raw_processes, raw_connections):
     """
-    Backend se aaya hua raw data (jo memory dump se nikla hai)
-    GUI ke liye clean format mein convert karta hai
-    
-    Input: 
-        raw_processes - list of process dictionaries
-        raw_connections - list of connection dictionaries
-    
-    Output:
-        {
-            'processes': cleaned_processes,
-            'connections': cleaned_connections,
-            'stats': {'total_processes': x, 'total_connections': y}
-        }
+    Cleans raw backend data for GUI rendering.
     """
-    
-    # Clean Processes (Handle null values)
     cleaned_processes = []
     for p in raw_processes:
-        # SECURITY FIX: Enforce stringent type mapping and string bounds
         clean_p = {
-            'pid': str(p.get('pid', 'N/A'))[:20],
-            'name': str(p.get('name', 'Unknown'))[:255],
-            'ppid': str(p.get('ppid', 'N/A'))[:20],
-            'time': str(p.get('time', 'N/A'))[:50]
+            'pid': str(p.get('pid', 'N/A')),
+            'name': str(p.get('name', 'Unknown')),
+            'ppid': str(p.get('ppid', 'N/A')),
+            'time': str(p.get('time', 'N/A'))
         }
         cleaned_processes.append(clean_p)
     
-    # Clean Connections
     cleaned_connections = []
     for c in raw_connections:
-        # SECURITY FIX: Enforce string type casting and guard maximum lengths
         clean_c = {
-            'pid': str(c.get('pid', 'N/A'))[:20],
-            'local_ip': str(c.get('local_ip', 'N/A'))[:50],
-            'local_port': str(c.get('local_port', 'N/A'))[:10],
-            'remote_ip': str(c.get('remote_ip', 'N/A'))[:50],
-            'remote_port': str(c.get('remote_port', 'N/A'))[:10],
-            'protocol': str(c.get('protocol', 'N/A'))[:10]
+            'pid': str(c.get('pid', 'N/A')),
+            'local_ip': str(c.get('local_ip', 'N/A')),
+            'local_port': str(c.get('local_port', 'N/A')),
+            'remote_ip': str(c.get('remote_ip', 'N/A')),
+            'remote_port': str(c.get('remote_port', 'N/A')),
+            'protocol': str(c.get('protocol', 'N/A'))
         }
         cleaned_connections.append(clean_c)
     
-    # Create Statistics (To show in GUI)
     stats = {
         'total_processes': len(cleaned_processes),
         'total_connections': len(cleaned_connections),
@@ -60,33 +97,20 @@ def prepare_data_for_gui(raw_processes, raw_connections):
         'stats': stats
     }
 
-
 def count_suspicious(processes):
-    """
-    Suspicious processes count karo
-    Suspicious = naam mein 'malware', 'virus', 'hidden', ya unknown source
-    """
     suspicious_keywords = ['malware', 'virus', 'rootkit', 'hidden', 'unknown']
     count = 0
     for p in processes:
         name_lower = p.get('name', '').lower()
-        for keyword in suspicious_keywords:
-            if keyword in name_lower:
-                count += 1
-                break
+        if any(k in name_lower for k in suspicious_keywords):
+            count += 1
     return count
 
-
 def search_in_prepared_data(prepared_data, search_term):
-    """
-    GUI ke prepared data mein search karna
-    """
     if not search_term:
         return prepared_data
-    
     filtered_processes = filter_processes(prepared_data['processes'], search_term)
     filtered_connections = filter_connections(prepared_data['connections'], search_term)
-    
     return {
         'processes': filtered_processes,
         'connections': filtered_connections,
@@ -96,31 +120,3 @@ def search_in_prepared_data(prepared_data, search_term):
             'suspicious_count': count_suspicious(filtered_processes)
         }
     }
-
-
-# TEST CODE 
-
-if __name__ == "__main__":
-    print("=== INTEGRATION TEST ===\n")
-    
-    # Step 1: Prepare Dummy data 
-    prepared = prepare_data_for_gui(sample_processes, sample_connections)
-    
-    print("1. CLEANED PROCESSES:")
-    for p in prepared['processes']:
-        print(f"   PID: {p['pid']}, Name: {p['name']}, PPID: {p['ppid']}, Time: {p['time']}")
-    
-    print("\n2. CLEANED CONNECTIONS:")
-    for c in prepared['connections']:
-        print(f"   PID: {c['pid']}, {c['local_ip']}:{c['local_port']} -> {c['remote_ip']}:{c['remote_port']} ({c['protocol']})")
-    
-    print(f"\n3. STATISTICS:")
-    print(f"   Total Processes: {prepared['stats']['total_processes']}")
-    print(f"   Total Connections: {prepared['stats']['total_connections']}")
-    print(f"   Suspicious Count: {prepared['stats']['suspicious_count']}")
-    
-    print("\n4. SEARCH TEST (searching for 'malware'):")
-    search_result = search_in_prepared_data(prepared, "malware")
-    print(f"   Found {search_result['stats']['total_processes']} matching processes")
-    for p in search_result['processes']:
-        print(f"   -> {p['name']} (PID: {p['pid']})")
